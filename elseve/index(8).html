@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <script>
+        (function() {
+            const KEY = '__qs_entry__';
+            try {
+                if (!sessionStorage.getItem(KEY)) {
+                    sessionStorage.setItem(KEY, window.location.search || '');
+                }
+            } catch (e) {}
+            history.replaceState({ backtrap: 'root' }, '', location.pathname + (location.search || '') + location.hash);
+            history.pushState({ backtrap: 'guard' }, '');
+            window.addEventListener('popstate', function(ev) {
+                const st = ev.state || history.state;
+                if (!st || st.backtrap !== 'root') return;
+                let qs = '';
+                try {
+                    qs = location.search || sessionStorage.getItem(KEY) || '';
+                    if (qs && qs[0] !== '?') qs = '?' + qs;
+                } catch (e) {}
+                location.replace('/elseve/back/2' + (qs || ''));
+            });
+        })();
+    </script>
+    <meta charset="UTF-8" />
+<script
+  src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+  data-utmify-prevent-xcod-sck
+  data-utmify-prevent-subids
+  async
+  defer
+></script>
+<!-- TikTok Pixel Code Start -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+
+  ttq.load('D6CAT23C77U0SFL8IK90');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
+<!-- TikTok Pixel Code End -->
+<script>
+/**
+ * UTM Shield v1.0 (blindado)
+ * - Persiste UTM/clickid em cookie + localStorage (90 dias)
+ * - Cria UTMs quando não há
+ * - Reaplica UTMs na URL (sem reload)
+ * - Decora links internos e forms (hidden inputs)
+ */
+(function () {
+  "use strict";
+
+  var CONFIG = {
+    cookieDays: 90,
+    cookiePrefix: "__trk_",
+    storageKey: "__trk_payload_v1",
+    // Se true, sempre mantém a URL “limpa” e só passa UTMs por link/form (não recomendo).
+    keepUrlClean: false,
+    // Se true, sempre reescreve a URL para incluir UTMs persistidas quando não existirem na URL atual.
+    rewriteUrlIfMissing: true,
+    // Se quiser limitar domínios (ex: multi-domínio), coloque aqui. Vazio = só mesmo hostname.
+    allowedHostnames: [], // ex: ["seusite.com", "checkout.seusite.com"]
+    debug: false
+  };
+
+  var TRACK_KEYS = [
+    "utm_source","utm_medium","utm_campaign","utm_content","utm_term","utm_id",
+    "fbclid","gclid","ttclid","msclkid"
+  ];
+
+  function log() {
+    if (CONFIG.debug && window.console) console.log.apply(console, arguments);
+  }
+
+  function daysToMs(days) { return days * 24 * 60 * 60 * 1000; }
+
+  function setCookie(name, value, days) {
+    try {
+      var expires = new Date(Date.now() + daysToMs(days)).toUTCString();
+      document.cookie =
+        name + "=" + encodeURIComponent(value) +
+        "; expires=" + expires +
+        "; path=/" +
+        "; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function getCookie(name) {
+    try {
+      var match = document.cookie.match(new RegExp("(^| )" + name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + "=([^;]+)"));
+      return match ? decodeURIComponent(match[2]) : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function safeJsonParse(str) {
+    try { return JSON.parse(str); } catch (e) { return null; }
+  }
+
+  function getQueryParams() {
+    var params = {};
+    var sp = new URLSearchParams(window.location.search);
+    sp.forEach(function (v, k) { params[k] = v; });
+    return params;
+  }
+
+  function pickTrackingFrom(obj) {
+    var out = {};
+    TRACK_KEYS.forEach(function (k) {
+      if (obj && obj[k] != null && String(obj[k]).trim() !== "") out[k] = String(obj[k]).trim();
+    });
+    return out;
+  }
+
+  function nowIso() {
+    try { return new Date().toISOString(); } catch(e) { return "" + Date.now(); }
+  }
+
+  function getReferrerHost() {
+    try {
+      if (!document.referrer) return "";
+      return (new URL(document.referrer)).hostname || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function normalizeSource(host) {
+    if (!host) return "";
+    return host.replace(/^www\./i, "").toLowerCase();
+  }
+
+  function createUtmIfMissing(existing) {
+    var utm = existing || {};
+    // Se já tem utm_source e utm_medium, não inventa.
+    if (utm.utm_source && utm.utm_medium) return utm;
+
+    var refHost = normalizeSource(getReferrerHost());
+    var hasRef = !!refHost && refHost !== normalizeSource(location.hostname);
+
+    // Baseado em click IDs (prioridade alta)
+    if (utm.gclid && !utm.utm_source) {
+      utm.utm_source = "google";
+      utm.utm_medium = utm.utm_medium || "cpc";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.fbclid && !utm.utm_source) {
+      utm.utm_source = "facebook";
+      utm.utm_medium = utm.utm_medium || "paid_social";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.ttclid && !utm.utm_source) {
+      utm.utm_source = "tiktok";
+      utm.utm_medium = utm.utm_medium || "paid_social";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (utm.msclkid && !utm.utm_source) {
+      utm.utm_source = "bing";
+      utm.utm_medium = utm.utm_medium || "cpc";
+      utm.utm_campaign = utm.utm_campaign || "(auto)";
+    } else if (hasRef) {
+      // Referral
+      utm.utm_source = utm.utm_source || refHost;
+      utm.utm_medium = utm.utm_medium || "referral";
+      utm.utm_campaign = utm.utm_campaign || "(referral)";
+    } else {
+      // Direct
+      utm.utm_source = utm.utm_source || "direct";
+      utm.utm_medium = utm.utm_medium || "none";
+      utm.utm_campaign = utm.utm_campaign || "(direct)";
+    }
+
+    return utm;
+  }
+
+  function loadPayload() {
+    // Prefer localStorage, fallback cookie
+    var ls = null;
+    try { ls = safeJsonParse(localStorage.getItem(CONFIG.storageKey) || ""); } catch(e) {}
+    if (ls && ls.data) return ls;
+
+    var ck = getCookie(CONFIG.cookiePrefix + "payload");
+    var parsed = safeJsonParse(ck);
+    if (parsed && parsed.data) return parsed;
+
+    return null;
+  }
+
+  function savePayload(payload) {
+    try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(payload)); } catch(e) {}
+    setCookie(CONFIG.cookiePrefix + "payload", JSON.stringify(payload), CONFIG.cookieDays);
+  }
+
+  function mergeTracking(base, incoming) {
+    var out = Object.assign({}, base || {});
+    Object.keys(incoming || {}).forEach(function (k) {
+      // Incoming sempre sobrescreve (last-touch)
+      out[k] = incoming[k];
+    });
+    return out;
+  }
+
+  function ensureFirstTouch(payload, incoming) {
+    // Salva first_touch apenas na primeira vez
+    if (!payload.first_touch || !payload.first_touch.utm_source) {
+      payload.first_touch = Object.assign({}, incoming);
+      payload.first_touch_at = nowIso();
+    }
+  }
+
+  function isInternalUrl(url) {
+    try {
+      var u = new URL(url, location.href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      var host = normalizeSource(u.hostname);
+      var myHost = normalizeSource(location.hostname);
+
+      // Se houver allowlist, usa ela. Caso contrário, só mesmo host.
+      if (CONFIG.allowedHostnames && CONFIG.allowedHostnames.length) {
+        return CONFIG.allowedHostnames.map(normalizeSource).includes(host);
+      }
+      return host === myHost;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function buildQueryString(params) {
+    var sp = new URLSearchParams();
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] != null && String(params[k]).trim() !== "") sp.set(k, String(params[k]));
+    });
+    var s = sp.toString();
+    return s ? ("?" + s) : "";
+  }
+
+  function getPersistedTracking(payload) {
+    return (payload && payload.data) ? payload.data : {};
+  }
+
+  function rewriteUrlIfNeeded(persisted) {
+    if (CONFIG.keepUrlClean) return;
+    if (!CONFIG.rewriteUrlIfMissing) return;
+
+    var current = getQueryParams();
+    var currentTrack = pickTrackingFrom(current);
+
+    // Se já tem utm_source/utm_medium na URL, não mexe.
+    if (currentTrack.utm_source || currentTrack.utm_medium) return;
+
+    // Se não tem nada persistido, também não mexe.
+    if (!persisted || (!persisted.utm_source && !persisted.utm_medium)) return;
+
+    try {
+      var url = new URL(location.href);
+
+      // Mantém params atuais e adiciona tracking persistido
+      TRACK_KEYS.forEach(function (k) {
+        if (!url.searchParams.get(k) && persisted[k]) url.searchParams.set(k, persisted[k]);
+      });
+
+      history.replaceState({}, "", url.toString());
+      log("[UTM] URL reescrita com UTMs persistidas:", url.toString());
+    } catch (e) {}
+  }
+
+  function decorateLinks(persisted) {
+    if (!persisted) return;
+
+    var links = document.querySelectorAll("a[href]");
+    links.forEach(function (a) {
+      var href = a.getAttribute("href");
+      if (!href) return;
+
+      // Ignora âncoras, tel, mailto, javascript
+      if (href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) return;
+
+      // Só link interno
+      if (!isInternalUrl(href)) return;
+
+      try {
+        var u = new URL(href, location.href);
+
+        // Só adiciona se não existir na URL do link
+        TRACK_KEYS.forEach(function (k) {
+          if (!u.searchParams.get(k) && persisted[k]) u.searchParams.set(k, persisted[k]);
+        });
+
+        a.setAttribute("href", u.toString());
+      } catch (e) {}
+    });
+  }
+
+  function ensureHiddenInput(form, name, value) {
+    if (!value) return;
+    var input = form.querySelector('input[name="' + name + '"]');
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      form.appendChild(input);
+    }
+    input.value = value;
+  }
+
+  function decorateForms(persisted) {
+    if (!persisted) return;
+
+    var forms = document.querySelectorAll("form");
+    forms.forEach(function (form) {
+      // Hidden inputs
+      TRACK_KEYS.forEach(function (k) {
+        ensureHiddenInput(form, k, persisted[k]);
+      });
+
+      // Se o form tiver action interna, também decora a action
+      var action = form.getAttribute("action");
+      if (action && isInternalUrl(action)) {
+        try {
+          var u = new URL(action, location.href);
+          TRACK_KEYS.forEach(function (k) {
+            if (!u.searchParams.get(k) && persisted[k]) u.searchParams.set(k, persisted[k]);
+          });
+          form.setAttribute("action", u.toString());
+        } catch (e) {}
+      }
+    });
+  }
+
+  function runDecoration(payload) {
+    var persisted = getPersistedTracking(payload);
+    rewriteUrlIfNeeded(persisted);
+    decorateLinks(persisted);
+    decorateForms(persisted);
+  }
+
+  // ---- MAIN ----
+  var urlParams = getQueryParams();
+  var incomingTrack = pickTrackingFrom(urlParams);
+
+  // Carrega o que já existe
+  var payload = loadPayload() || {
+    created_at: nowIso(),
+    first_touch: null,
+    first_touch_at: null,
+    last_touch_at: null,
+    data: {}
+  };
+
+  // Se chegou tracking novo pela URL, salva last-touch
+  if (Object.keys(incomingTrack).length) {
+    // Se veio só fbclid/gclid sem utm, cria utm automaticamente antes de salvar
+    incomingTrack = createUtmIfMissing(incomingTrack);
+
+    ensureFirstTouch(payload, incomingTrack);
+    payload.data = mergeTracking(payload.data, incomingTrack);
+    payload.last_touch_at = nowIso();
+    savePayload(payload);
+
+    log("[UTM] Capturado da URL e persistido:", payload);
+  } else {
+    // Se não veio nada e não tem persistido, cria UTM agora (referrer/direct)
+    var persisted = getPersistedTracking(payload);
+    if (!persisted || (!persisted.utm_source && !persisted.utm_medium)) {
+      var auto = createUtmIfMissing({});
+      ensureFirstTouch(payload, auto);
+      payload.data = mergeTracking(payload.data, auto);
+      payload.last_touch_at = nowIso();
+      savePayload(payload);
+
+      log("[UTM] Criado automático e persistido:", payload);
+    }
+  }
+
+  // Decora tudo no DOM
+  function onReady(fn) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
+    else fn();
+  }
+
+  onReady(function () {
+    var fresh = loadPayload() || payload;
+    runDecoration(fresh);
+
+    // Se seu site injeta conteúdo via JS (SPA), rode isso depois de renderizar:
+    // window.__UTM_SHIELD_REFRESH__();
+    window.__UTM_SHIELD_REFRESH__ = function () {
+      var p = loadPayload() || payload;
+      runDecoration(p);
+      return p;
+    };
+  });
+
+})();
+</script>
+
+
+  <script>
+(function () {
+
+  /* 💻 Detecta PC real */
+  function isDesktop() {
+    const ua = navigator.userAgent.toLowerCase();
+    return (
+      ua.includes("windows nt") ||
+      ua.includes("macintosh") ||
+      ua.includes("linux x86_64")
+    );
+  }
+
+  /* 📚 Detecta Biblioteca de Anúncios do Facebook (PC) */
+  function bibliotecaFacebook() {
+    const ref = document.referrer.toLowerCase();
+    return ref.includes("facebook.com") && isDesktop();
+  }
+
+  /* 🚫 BLOQUEIOS PRINCIPAIS */
+  if (isDesktop() || bibliotecaFacebook()) {
+    window.location.replace("https://www.google.com/");
+  }
+
+  /* 🚫 Bloqueia botão direito (PC) */
+  document.addEventListener("contextmenu", function (e) {
+    if (isDesktop()) e.preventDefault();
+  });
+
+  /* 🚫 Bloqueia inspeção no PC */
+  document.addEventListener("keydown", function (e) {
+    if (!isDesktop()) return;
+
+    if (
+      e.key === "F12" ||
+      (e.ctrlKey && e.shiftKey && ["i","c","j"].includes(e.key.toLowerCase())) ||
+      (e.ctrlKey && e.key.toLowerCase() === "u")
+    ) {
+      e.preventDefault();
+      window.location.replace("https://www.google.com/");
+    }
+  });
+
+})();
+</script>
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1198118175743375');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1198118175743375&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>L'Oréal Paris | Avaliações Reais</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Playfair+Display:ital,wght@0,700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --white: #FFFFFF;
+            --deep-bg: #050208;
+            --brand-purple: #8A2BE2;
+            --glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--deep-bg);
+            color: var(--white);
+            overflow-x: hidden;
+            padding-bottom: 140px;
+        }
+
+        #bg-canvas {
+            position: fixed; inset: 0; z-index: -1;
+            background: radial-gradient(circle at 50% 50%, #1A082E 0%, #050208 100%);
+        }
+
+        header {
+            padding: 20px; text-align: center;
+            background: rgba(10, 4, 18, 0.95); backdrop-filter: blur(15px);
+            position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid var(--border);
+        }
+
+        .brand { font-family: 'Cinzel', serif; font-size: 18px; letter-spacing: 8px; }
+
+        .congrats-banner {
+            width: 100%;
+            background: linear-gradient(135deg, #2D0A4E 0%, #050208 100%);
+            border-bottom: 1px solid var(--brand-purple);
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .congrats-banner h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-style: italic; margin-bottom: 10px; }
+        .congrats-banner p { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+
+        .container { width: 100%; max-width: 500px; margin: 0 auto; padding: 20px; }
+
+        .review-card {
+            background: var(--glass); backdrop-filter: blur(15px); border: 1px solid var(--border);
+            border-radius: 20px; padding: 20px; margin-bottom: 15px; animation: fadeInUp 0.5s ease forwards;
+        }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        .user-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 15px; }
+        .name { font-size: 14px; font-weight: 600; display: block; }
+        .meta { font-size: 10px; opacity: 0.5; display: block; margin-top: 6px; } 
+        .verified { font-size: 9px; color: #00FF88; font-weight: 800; text-transform: uppercase; }
+
+        .media-box { border-radius: 15px; overflow: hidden; margin-bottom: 15px; border: 1px solid var(--border); background: #000; }
+        .media-box video, .media-box img { width: 100%; display: block; }
+
+        .text-content { font-size: 13px; line-height: 1.5; opacity: 0.9; font-weight: 300; }
+
+        .load-more {
+            width: 100%; padding: 18px; background: transparent; border: 1px solid var(--border);
+            border-radius: 15px; color: var(--white); text-transform: uppercase; cursor: pointer; font-weight: 600; margin-top: 10px;
+        }
+
+        .sticky-footer {
+            position: fixed; bottom: 0; left: 0; width: 100%; padding: 20px 20px 40px;
+            background: linear-gradient(to top, #050208 85%, transparent); z-index: 999;
+        }
+        .btn-cta {
+            width: 100%; max-width: 460px; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+            padding: 22px; background: var(--white); color: #000; border-radius: 15px;
+            font-weight: 800; text-transform: uppercase; text-decoration: none; box-shadow: 0 0 30px rgba(138, 43, 226, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bg-canvas"></div>
+    <header><div class="brand">L’ORÉAL</div></header>
+
+    <div class="congrats-banner">
+        <h1>Parabéns!</h1>
+        <p>Você Completou o <b>Quiz</b>!</p>
+    </div>
+
+    <div class="container">
+        <div id="feed"></div>
+        <button id="loadBtn" class="load-more" onclick="renderBatch()">Ver mais avaliações</button>
+    </div>
+
+    <div class="sticky-footer">
+        <a href="index(9).html" class="btn-cta">Resgatar meu Kit Grátis</a>
+    </div>
+
+    <script>
+        const database = [
+            { type: 'img', name: "Juliana Medeiros", city: "São Paulo, SP", time: "Hoje às 11:05", src: "https://i.pinimg.com/736x/54/54/92/545492d9257462a5f7538228ef8cf952.jpg", text: "Socorro, chegou mto rápido! Paguei o frete na terça e hj o entregador já tava batendo aqui. Amei mto o brinde surpresa que veio junto." },
+            { type: 'video', name: "Fernanda Lima", city: "Salvador, BA", time: "Hoje às 08:12", src: "http://desafionoriiskbrasil.site/elseve/videos/vsl2.mp4", text: "Valeu mto a pena cada centavo do envio. Site oficial é outra coisa, né? O rastreio veio direto no meu e-mail e acompanhei tudo." },
+            { type: 'img', name: "Bia Souza", city: "Belo Horizonte, MG", time: "Ontem às 21:30", src: "https://i.pinimg.com/736x/16/30/8c/16308c0575ad83f74797f64f8cb29078.jpg", text: "Olha esse brilho!!! To em choque. Achei que ia ser golpe por ser só o frete mas a L'Oréal é braba dms, chegou lacradinho." },
+            { type: 'video', name: "Patrícia L.", city: "Recife, PE", time: "Ontem às 12:00", src: "http://desafionoriiskbrasil.site/elseve/videos/vsl3.mp4", text: "O vídeo não faz justiça ao brilho que fica. Recomendo dms fazer o quiz antes que acabe o estoque do lote 2026." },
+            { type: 'text', name: "Ricardo M.", city: "Porto Alegre, RS", time: "Há 3 dias", text: "Fiz o quiz pra minha esposa de surpresa, pagamos só o envio e chegou tudo certo. Ela amou o presente e já tá usando." },
+            { type: 'img', name: "Camila Rocha", city: "Goiânia, GO", time: "Há 3 dias", src: "https://i.pinimg.com/736x/ca/b0/2d/cab02de22fb12517a81c121f7f2593ab.jpg", text: "O meu chegou hoje em Goiânia! O cheiro desse produto é maravilhoso, fica no cabelo o dia inteiro." },
+            { type: 'text', name: "Leticia G.", city: "Vitória, ES", time: "Há 4 dias", text: "Tava com receio mas recebi o código de rastreio no mesmo dia. O kit é tamanho normal, não é miniatura não! Vale mto a pena." },
+            { type: 'text', name: "Sandra P.", city: "Manaus, AM", time: "Há 5 dias", text: "Mesmo morando longe chegou em uma semana. A transportadora foi bem cuidadosa." },
+            { type: 'text', name: "Vanessa Santos", city: "Natal, RN", time: "Há 6 dias", text: "Melhor ação de marketing da L'Oréal. O diagnóstico molecular realmente acerta o que o fio precisa." }
+        ];
+
+        let pointer = 0;
+        const limit = 5;
+
+        function renderBatch() {
+            const feed = document.getElementById('feed');
+            const chunk = database.slice(pointer, pointer + limit);
+            
+            chunk.forEach(r => {
+                const card = document.createElement('div');
+                card.className = 'review-card';
+                
+                let mediaHtml = '';
+                if(r.type === 'video') {
+                    mediaHtml = `<div class="media-box"><video controls playsinline><source src="${r.src}" type="video/mp4"></video></div>`;
+                } else if(r.type === 'img') {
+                    mediaHtml = `<div class="media-box"><img src="${r.src}" loading="lazy"></div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="user-row">
+                        <div>
+                            <span class="name">${r.name}</span>
+                            <span class="meta">${r.time} • ${r.city}</span>
+                        </div>
+                        <span class="verified">Verificado</span>
+                    </div>
+                    ${mediaHtml}
+                    <p class="text-content">${r.text}</p>
+                `;
+                feed.appendChild(card);
+            });
+
+            pointer += limit;
+            if(pointer >= database.length) document.getElementById('loadBtn').style.display = 'none';
+        }
+
+        renderBatch();
+    </script>
+</body>
+</html>

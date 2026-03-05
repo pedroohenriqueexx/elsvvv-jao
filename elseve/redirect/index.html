@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="pt-BR"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+</head>
+<body>
+
+    <h1></h1>
+    <p></p>
+
+    <script>
+        // Função para obter os parâmetros UTM da URL atual
+        function obterParametrosUTM() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let utmParams = '';
+            
+            // Captura os parâmetros UTM e os adiciona à string
+            if (urlParams.has('utm_source')) {
+                utmParams += `utm_source=${urlParams.get('utm_source')}&`;
+            }
+            if (urlParams.has('utm_medium')) {
+                utmParams += `utm_medium=${urlParams.get('utm_medium')}&`;
+            }
+            if (urlParams.has('utm_campaign')) {
+                utmParams += `utm_campaign=${urlParams.get('utm_campaign')}&`;
+            }
+            if (urlParams.has('utm_term')) {
+                utmParams += `utm_term=${urlParams.get('utm_term')}&`;
+            }
+            if (urlParams.has('utm_content')) {
+                utmParams += `utm_content=${urlParams.get('utm_content')}&`;
+            }
+
+            // Retorna os parâmetros UTM, removendo o último '&'
+            return utmParams ? utmParams.slice(0, -1) : '';
+        }
+
+        // Verifica o número de visitas armazenadas
+        let visitas = localStorage.getItem('visitas');
+        
+        if (!visitas) {
+            visitas = 1; // Primeira visita
+        } else {
+            visitas = parseInt(visitas) + 1; // Incrementa a contagem de visitas
+        }
+
+        // Armazena o número de visitas no localStorage
+        localStorage.setItem('visitas', visitas);
+
+        // Define os links para redirecionamento
+        const links = [
+            '/elseve/upsell/embalagem/',
+            '/elseve/upsell/frete/',
+            '/elseve/upsell/importacao/',
+            '/elseve/upsell/tenf/',
+            '/elseve/upsell/nfe/',
+            'https://www.google.com'
+        ];
+
+        // Obtém os parâmetros UTM da URL atual
+        const utmParams = obterParametrosUTM();
+
+        // Lógica para redirecionar baseado no número de visitas
+        if (visitas <= links.length) {
+            // Redireciona para o link correspondente, com os parâmetros UTM
+            window.location.href = `${links[visitas - 1]}?${utmParams}`;
+        } else {
+            // Caso tenha mais de 7 visitas, redireciona para o site 7 com os parâmetros UTM
+            window.location.href = `${links[links.length - 1]}?${utmParams}`;
+        }
+    </script>
+
+
+</body></html>
